@@ -84,7 +84,7 @@ export const uploadCSV = async (req: Request, res: Response) => {
     await flashcardService.processCSVUpload(csvFilePath);
     res.status(200).json({ message: 'CSV file processed successfully' });
   } catch (error) {
-    console.error('Error processing CSV file:', error);
+    console.error('Error processing CSV file:', csvFilePath);
     res.status(500).json({ error: 'Failed to process CSV file' });
   }
 };
