@@ -78,7 +78,7 @@ describe('Flashcard Controller', () => {
       const res = await request(app).get(buildUrl('/all'));
 
       expect(res.statusCode).toEqual(200);
-      expect(res.body).toHaveLength(1);
+      expect(res.body.flashcards).toHaveLength(1);
     });
 
     it('should return 500 if there is a server error', async () => {
