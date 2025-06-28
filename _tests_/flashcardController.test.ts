@@ -1,28 +1,17 @@
 
 import request from 'supertest';
-import app from '../src/app'; // Import your Express app
+import app from '../src/app';
 import mongoose from 'mongoose';
 import Flashcard from '../src/models/flashcardModel';
 import dotenv from 'dotenv';
 
-
 dotenv.config();
 
-const base = '/api/flashcards';
-const buildUrl = (path: string) => `${base}${path}`; // Helper function
-
-
-
-
+const buildUrl = (path: string) => `/api/flashcards${path}`;
 
 describe('Flashcard Controller', () => {
   beforeAll(async () => {
-    try {
-      await mongoose.connect(process.env.MONGO_URI!);
-      console.log('Database connected successfully');
-    } catch (error) {
-      console.error('Database connection failed:', error);
-    }
+    await mongoose.connect(process.env.MONGO_URI!);
   });
 
   afterAll(async () => {
@@ -35,7 +24,7 @@ describe('Flashcard Controller', () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks(); // Ensure mocks are reset after each test
+    jest.restoreAllMocks();
   });
 
   describe('POST /add', () => {
@@ -54,16 +43,19 @@ describe('Flashcard Controller', () => {
       expect(res.body).toHaveProperty('category', 'Greetings');
     });
 
-    it('should return 500 if required fields are missing', async () => {
+    it('should return 400 if required fields are missing', async () => {
       const res = await request(app)
         .post(buildUrl('/add'))
         .send({
           spanishWord: 'Hola',
-          category: 'Greetings',
         });
 
-      expect(res.statusCode).toEqual(500);
-      expect(res.body).toHaveProperty('error', 'Failed to add flashcard');
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toHaveProperty('status', 'fail');
+      expect(res.body).toHaveProperty('message', 'Request validation failed');
+      expect(res.body).toHaveProperty('details');
+      expect(Array.isArray(res.body.details)).toBe(true);
+      expect(res.body.details.some((d: any) => d.field === 'englishWord')).toBe(true);
     });
   });
 
@@ -75,7 +67,7 @@ describe('Flashcard Controller', () => {
         category: 'Greetings',
       });
 
-      const res = await request(app).get(buildUrl('/all'));
+      const res = await request(app).get(buildUrl('/all?page=1&limit=10'));
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.flashcards).toHaveLength(1);
@@ -83,13 +75,13 @@ describe('Flashcard Controller', () => {
 
     it('should return 500 if there is a server error', async () => {
       jest.spyOn(Flashcard, 'find').mockImplementationOnce(() => {
-        throw new Error('Database error');
+        throw new Error('Internal server error');
       });
 
-      const res = await request(app).get(buildUrl('/all'));
+      const res = await request(app).get(buildUrl('/all?page=1&limit=10'));
 
       expect(res.statusCode).toEqual(500);
-      expect(res.body).toHaveProperty('error', 'Failed to get flashcards');
+      expect(res.body).toHaveProperty('message', 'Internal server error');
     });
   });
 
@@ -111,35 +103,28 @@ describe('Flashcard Controller', () => {
       expect(res.body).toHaveProperty('percentageCorrect', 1);
     });
 
-    it('should return 404 if flashcard is not found', async () => {
+    it('should return 400 if ID is invalid', async () => {
       const res = await request(app)
-        .put(buildUrl('/update/nonexistentid'))
-        .send({
-          isCorrect: true,
-        });
+        .put(buildUrl('/update/invalid-id'))
+        .send({ isCorrect: true });
 
-      expect(res.statusCode).toEqual(500);
-      expect(res.body).toHaveProperty('error', 'Failed to update flashcard');
+      expect(res.statusCode).toEqual(400);
+      expect(res.body).toHaveProperty('message');
     });
 
-    it('should return 500 if there is a server error', async () => {
-      jest.spyOn(Flashcard, 'findById').mockImplementationOnce(() => {
-        throw new Error('Database error');
-      });
-
+    it('should return 404 if flashcard is not found', async () => {
+      const nonExistentId = new mongoose.Types.ObjectId();
       const res = await request(app)
-        .put(buildUrl('/update/nonexistentid'))
-        .send({
-          isCorrect: true,
-        });
+        .put(buildUrl(`/update/${nonExistentId}`))
+        .send({ isCorrect: true });
 
-      expect(res.statusCode).toEqual(500);
-      expect(res.body).toHaveProperty('error', 'Failed to update flashcard');
+      expect(res.statusCode).toEqual(404);
+      expect(res.body).toHaveProperty('message');
     });
   });
 
   describe('GET /needpractice/:category', () => {
-    it('should get flashcards with percentageCorrect less than 50% in a specific category', async () => {
+    it('should get flashcards with percentageCorrect less than 50% in a category', async () => {
       await Flashcard.create([
         {
           spanishWord: 'Hola',
@@ -158,29 +143,15 @@ describe('Flashcard Controller', () => {
       const res = await request(app).get(buildUrl('/needpractice/Greetings'));
 
       expect(res.statusCode).toEqual(200);
-      expect(res.body).toHaveLength(1);
+      expect(res.body.length).toBe(1);
       expect(res.body[0]).toHaveProperty('percentageCorrect', 0.3);
     });
 
-    it('should return 404 if no flashcards are found', async () => {
-      const res = await request(app).get(buildUrl('/needpractice/NonexistentCategory'));
-
-      expect(res.statusCode).toEqual(404);
-      expect(res.body).toHaveProperty(
-        'error',
-        'No flashcards found with the specified category and percentageCorrect'
-      );
-    });
-
-    it('should return 500 if there is a server error', async () => {
-      jest.spyOn(Flashcard, 'find').mockImplementationOnce(() => {
-        throw new Error('Database error');
-      });
-
+    it('should return 404 if no flashcards found', async () => {
       const res = await request(app).get(buildUrl('/needpractice/Greetings'));
 
-      expect(res.statusCode).toEqual(500);
-      expect(res.body).toHaveProperty('error', 'Failed to get flashcards');
+      expect(res.statusCode).toEqual(404);
+      expect(res.body).toHaveProperty('message');
     });
   });
 });

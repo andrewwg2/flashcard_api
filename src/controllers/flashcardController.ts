@@ -1,90 +1,101 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { flashcardService } from '../services/flashcardService';
+import { asyncHandler, errorUtils, NotFoundError, FileProcessingError } from '../middleware/errorHandler';
 
-// Update a flashcard
-export const updateFlashcard = async (req: Request, res: Response) => {
+// Update a flashcard - now with proper error handling
+export const updateFlashcard = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
   const { isCorrect } = req.body;
 
-  try {
-    const flashcard = await flashcardService.updateFlashcardStats(id, isCorrect);
+  // Validate input
+  errorUtils.validateFlashcardUpdate(isCorrect);
 
-    if (!flashcard) {
-      return res.status(404).json({ error: 'Flashcard not found' });
-    }
+  // Update flashcard
+  const flashcard = await flashcardService.updateFlashcardStats(id, isCorrect);
 
-    res.status(200).json(flashcard);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update flashcard' });
-  }
-};
+  // Check if flashcard exists
+  errorUtils.throwIfNotFound(flashcard, 'Flashcard');
 
-// Add a new flashcard
-export const addFlashcard = async (req: Request, res: Response) => {
+  res.status(200).json(
+    flashcard
+  );
+});
+
+// Add a new flashcard - with enhanced error handling
+export const addFlashcard = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { spanishWord, englishWord, category } = req.body;
 
-  try {
-    const newFlashcard = await flashcardService.createFlashcard(
-      spanishWord,
-      englishWord,
-      category
-    );
-    
-    res.status(201).json(newFlashcard);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to add flashcard' });
-  }
-};
+  // You could add duplicate checking here
+  // await errorUtils.throwIfDuplicate(
+  //   Flashcard, 
+  //   { spanishWord, englishWord }, 
+  //   'A flashcard with these words already exists'
+  // );
 
-// Get all flashcards with optional pagination
-export const getFlashcards = async (req: Request, res: Response) => {
-  const { page = 1, limit = 10 } = req.query; // Default to page 1 and limit 10 if not provided
+  const newFlashcard = await flashcardService.createFlashcard(
+    spanishWord,
+    englishWord,
+    category
+  );
+  
+  res.status(201).json(
+    newFlashcard
+  );
+});
 
-  const options = {
-    page: parseInt(page as string, 10),
-    limit: parseInt(limit as string, 10),
-  };
+// Get all flashcards with validated pagination
+export const getFlashcards = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+  const { page = 1, limit = 10 } = req.query;
 
-  try {
-    const result = await flashcardService.getFlashcardsWithPagination(options);
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to get flashcards' });
-  }
-};
+  // Validate and parse pagination parameters
+  const options = errorUtils.validatePagination(page, limit);
 
-// Get flashcards with percentageCorrect less than 50% in a specific category
-export const getFlashcardsMostWrong = async (req: Request, res: Response) => {
+  const result = await flashcardService.getFlashcardsWithPagination(options);
+  
+  res.status(200).json(
+    result
+  );
+});
+
+// Get flashcards needing practice with better error handling
+export const getFlashcardsMostWrong = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { category } = req.params;
 
-  try {
-    const flashcards = await flashcardService.getFlashcardsNeedingPractice(category);
+  const flashcards = await flashcardService.getFlashcardsNeedingPractice(category);
 
-    if (flashcards.length === 0) {
-      return res.status(404).json({ 
-        error: 'No flashcards found with the specified category and percentageCorrect' 
-      });
-    }
-
-    res.status(200).json(flashcards);
-  } catch (error) {
-    // Handle specific Mongoose errors for better clarity
-    if (flashcardService.isMongooseCastError(error)) {
-      return res.status(400).json({ error: 'Invalid query parameter format' });
-    }
-
-    res.status(500).json({ error: 'Failed to get flashcards' });
+  if (flashcards.length === 0) {
+    throw new NotFoundError(
+      `No flashcards found in category '${category}' that need practice`,
+      { category, criteria: 'percentageCorrect < 50%' }
+    );
   }
-};
 
-export const uploadCSV = async (req: Request, res: Response) => {
-  const csvFilePath = req.body.csvFilePath; // Assuming the file path is sent in the request body
+  res.status(200).json(
+     flashcards
+  );
+});
+
+// Upload CSV with comprehensive error handling
+export const uploadCSV = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+  const { csvFilePath } = req.body;
+
+  // Validate CSV file
+  errorUtils.validateCSVFile(csvFilePath);
 
   try {
     await flashcardService.processCSVUpload(csvFilePath);
-    res.status(200).json({ message: 'CSV file processed successfully' });
-  } catch (error) {
-    console.error('Error processing CSV file:', csvFilePath);
-    res.status(500).json({ error: 'Failed to process CSV file' });
+    
+    res.status(200).json({
+      success: true,
+      message: 'CSV file processed successfully',
+      filePath: csvFilePath
+    });
+  } catch (error: any) {
+    // Throw a more specific error for CSV processing
+    throw new FileProcessingError(
+      `Failed to process CSV file: ${error.message}`,
+      { filePath: csvFilePath, originalError: error.message }
+    );
   }
-};
+});
+
