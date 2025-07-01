@@ -4,10 +4,16 @@ import app from '../src/app';
 import mongoose from 'mongoose';
 import Flashcard from '../src/models/flashcardModel';
 import dotenv from 'dotenv';
+import {
+  FlashcardDataFactory,
+  FlashcardRequestFactory,
+  FlashcardAssertionHelpers,
+  ApiUrlBuilder,
+  TestDatabaseHelpers,
+  TestErrorFactory,
+} from './factories';
 
 dotenv.config();
-
-const buildUrl = (path: string) => `/api/flashcards${path}`;
 
 describe('Flashcard Controller', () => {
   beforeAll(async () => {
@@ -29,45 +35,29 @@ describe('Flashcard Controller', () => {
 
   describe('POST /add', () => {
     it('should add a new flashcard', async () => {
+      const requestData = FlashcardRequestFactory.createAddRequest();
+      
       const res = await request(app)
-        .post(buildUrl('/add'))
-        .send({
-          spanishWord: 'Hola',
-          englishWord: 'Hello',
-          category: 'Greetings',
-        });
+        .post(ApiUrlBuilder.add())
+        .send(requestData);
 
-      expect(res.statusCode).toEqual(201);
-      expect(res.body).toHaveProperty('spanishWord', 'Hola');
-      expect(res.body).toHaveProperty('englishWord', 'Hello');
-      expect(res.body).toHaveProperty('category', 'Greetings');
+      FlashcardAssertionHelpers.assertFlashcardCreated(res, requestData);
     });
 
     it('should return 400 if required fields are missing', async () => {
       const res = await request(app)
-        .post(buildUrl('/add'))
-        .send({
-          spanishWord: 'Hola',
-        });
+        .post(ApiUrlBuilder.add())
+        .send(FlashcardRequestFactory.createInvalidRequest());
 
-      expect(res.statusCode).toBe(400);
-      expect(res.body).toHaveProperty('status', 'fail');
-      expect(res.body).toHaveProperty('message', 'Request validation failed');
-      expect(res.body).toHaveProperty('details');
-      expect(Array.isArray(res.body.details)).toBe(true);
-      expect(res.body.details.some((d: any) => d.field === 'englishWord')).toBe(true);
+      FlashcardAssertionHelpers.assertValidationError(res, 'englishWord');
     });
   });
 
   describe('GET /all', () => {
     it('should get all flashcards', async () => {
-      await Flashcard.create({
-        spanishWord: 'Hola',
-        englishWord: 'Hello',
-        category: 'Greetings',
-      });
+      await Flashcard.create(FlashcardDataFactory.create());
 
-      const res = await request(app).get(buildUrl('/all?page=1&limit=10'));
+      const res = await request(app).get(ApiUrlBuilder.getAll());
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.flashcards).toHaveLength(1);
@@ -75,72 +65,65 @@ describe('Flashcard Controller', () => {
 
     it('should return 500 if there is a server error', async () => {
       jest.spyOn(Flashcard, 'find').mockImplementationOnce(() => {
-        throw new Error('Internal server error');
+        throw TestErrorFactory.createInternalServerError();
       });
 
-      const res = await request(app).get(buildUrl('/all?page=1&limit=10'));
+      const res = await request(app).get(ApiUrlBuilder.getAll());
 
-      expect(res.statusCode).toEqual(500);
-      expect(res.body).toHaveProperty('message', 'Internal server error');
+      FlashcardAssertionHelpers.assertServerError(res);
     });
   });
 
   describe('PUT /update/:id', () => {
     it('should update a flashcard', async () => {
-      const flashcard = await Flashcard.create({
-        spanishWord: 'Hola',
-        englishWord: 'Hello',
-        category: 'Greetings',
-      });
+      const flashcard = await Flashcard.create(FlashcardDataFactory.create()) as { _id: string };
 
       const res = await request(app)
-        .put(buildUrl(`/update/${flashcard._id}`))
-        .send({
-          isCorrect: true,
-        });
+        .put(ApiUrlBuilder.update(flashcard._id))
+        .send(FlashcardRequestFactory.createUpdateRequest(true));
 
       expect(res.statusCode).toEqual(200);
       expect(res.body).toHaveProperty('percentageCorrect', 1);
     });
 
     it('should return 400 if ID is invalid', async () => {
+      const invalidId = TestDatabaseHelpers.generateInvalidObjectId();
       const res = await request(app)
-        .put(buildUrl('/update/invalid-id'))
-        .send({ isCorrect: true });
+        .put(ApiUrlBuilder.update(invalidId))
+        .send(FlashcardRequestFactory.createUpdateRequest());
 
-      expect(res.statusCode).toEqual(400);
-      expect(res.body).toHaveProperty('message');
+      FlashcardAssertionHelpers.assertBadRequest(res);
     });
 
     it('should return 404 if flashcard is not found', async () => {
-      const nonExistentId = new mongoose.Types.ObjectId();
+      const nonExistentId = TestDatabaseHelpers.generateObjectId();
       const res = await request(app)
-        .put(buildUrl(`/update/${nonExistentId}`))
-        .send({ isCorrect: true });
+        .put(ApiUrlBuilder.update(nonExistentId.toString()))
+        .send(FlashcardRequestFactory.createUpdateRequest());
 
-      expect(res.statusCode).toEqual(404);
-      expect(res.body).toHaveProperty('message');
+      FlashcardAssertionHelpers.assertNotFound(res);
     });
   });
 
   describe('GET /needpractice/:category', () => {
     it('should get flashcards with percentageCorrect less than 50% in a category', async () => {
-      await Flashcard.create([
-        {
+      const flashcardsData = [
+        FlashcardDataFactory.createNeedsPractice({
           spanishWord: 'Hola',
           englishWord: 'Hello',
           category: 'Greetings',
-          percentageCorrect: 0.3,
-        },
-        {
+        }),
+        FlashcardDataFactory.createHighPerformance({
           spanishWord: 'Adios',
           englishWord: 'Goodbye',
           category: 'Greetings',
           percentageCorrect: 0.6,
-        },
-      ]);
+        }),
+      ];
 
-      const res = await request(app).get(buildUrl('/needpractice/Greetings'));
+      await Flashcard.create(flashcardsData);
+
+      const res = await request(app).get(ApiUrlBuilder.needPractice('Greetings'));
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.length).toBe(1);
@@ -148,10 +131,9 @@ describe('Flashcard Controller', () => {
     });
 
     it('should return 404 if no flashcards found', async () => {
-      const res = await request(app).get(buildUrl('/needpractice/Greetings'));
+      const res = await request(app).get(ApiUrlBuilder.needPractice('Greetings'));
 
-      expect(res.statusCode).toEqual(404);
-      expect(res.body).toHaveProperty('message');
+      FlashcardAssertionHelpers.assertNotFound(res);
     });
   });
 });
