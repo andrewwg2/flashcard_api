@@ -75,16 +75,18 @@ describe('Flashcard Controller', () => {
   });
 
   describe('PUT /update/:id', () => {
-    it('should update a flashcard', async () => {
-      const flashcard = await Flashcard.create(FlashcardDataFactory.create()) as { _id: string };
-
+      it('should update a flashcard', async () => {
+      const flashcard = await Flashcard.create(FlashcardDataFactory.create()) as { id: string };
+     
       const res = await request(app)
-        .put(ApiUrlBuilder.update(flashcard._id))
+        .put(ApiUrlBuilder.update(flashcard.id.toString()))
         .send(FlashcardRequestFactory.createUpdateRequest(true));
-
+      
+      console.log('DEBUG: Validation details:', res.body.details);
       expect(res.statusCode).toEqual(200);
       expect(res.body).toHaveProperty('percentageCorrect', 1);
     });
+
 
     it('should return 400 if ID is invalid', async () => {
       const invalidId = TestDatabaseHelpers.generateInvalidObjectId();
@@ -105,7 +107,7 @@ describe('Flashcard Controller', () => {
     });
   });
 
-  describe('GET /needpractice/:category', () => {
+  describe('GET /practice/:category', () => {
     it('should get flashcards with percentageCorrect less than 50% in a category', async () => {
       const flashcardsData = [
         FlashcardDataFactory.createNeedsPractice({
@@ -124,7 +126,7 @@ describe('Flashcard Controller', () => {
       await Flashcard.create(flashcardsData);
 
       const res = await request(app).get(ApiUrlBuilder.needPractice('Greetings'));
-
+       console.log('DEBUG: Validation details:', res.body.details);
       expect(res.statusCode).toEqual(200);
       expect(res.body.length).toBe(1);
       expect(res.body[0]).toHaveProperty('percentageCorrect', 0.3);

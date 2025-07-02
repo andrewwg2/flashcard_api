@@ -4,6 +4,7 @@ import { IFlashcard } from '../../src/models/flashcardModel';
 // Flashcard data factory for creating test data
 export class FlashcardDataFactory {
   private static defaultFlashcard = {
+    id: new mongoose.Types.ObjectId().toString(),  
     spanishWord: 'Hola',
     englishWord: 'Hello',
     category: 'Greetings',
@@ -156,15 +157,16 @@ export class FlashcardAssertionHelpers {
    */
   static assertValidationError(res: any, expectedField?: string): void {
     expect(res.statusCode).toBe(400);
-    expect(res.body).toHaveProperty('status', 'fail');
-    expect(res.body).toHaveProperty('message', 'Request validation failed');
+    expect(res.body).toHaveProperty('status', 'error');
+    expect(typeof res.body.message).toBe('string');
+    expect(res.body.message.toLowerCase()).toContain('required');
     expect(res.body).toHaveProperty('details');
     expect(Array.isArray(res.body.details)).toBe(true);
-    
-    if (expectedField) {
-      expect(res.body.details.some((d: any) => d.field === expectedField)).toBe(true);
-    }
+
+  if (expectedField) {
+    expect(res.body.details.some((d: any) => d.path?.[0] === expectedField)).toBe(true);
   }
+}
 
   /**
    * Assert successful flashcard creation

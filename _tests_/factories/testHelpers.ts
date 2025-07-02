@@ -130,6 +130,6 @@ export class ApiUrlBuilder {
    * Build URL for need practice endpoint
    */
   static needPractice(category: string): string {
-    return this.build(`/needpractice/${category}`);
+    return this.build(`/practice/${category}`);
   }
 }

@@ -1,59 +1,20 @@
+//flashcardRoutes.ts
 import express from 'express';
-import {
-  updateFlashcard,
-  addFlashcard,
-  getFlashcards,
-  getFlashcardsMostWrong,
-  uploadCSV
-} from '../controllers/flashcardController';
-import { validateRequest } from '../middleware/errorHandler';
-import { flashcardSchemas } from '../validationSchemas';
+import * as flashcardController from '../controllers/flashcardController';
+import { validateDto, validateQueryDto, validateParamsDto, createFlashcardSchema, updateParamsSchema, updateBodySchema, flashcardQuerySchema } from '../validationSchemas';
 
 const router = express.Router();
 
-// Middleware to log route access (optional)
-router.use((req, res, next) => {
-  console.log(`Flashcard Route: ${req.method} ${req.path}`);
-  next();
-});
-
-// ============ FLASHCARD ROUTES ============
-
-// Upload CSV file with validation
-router.post(
-  '/upload_csv',
-  validateRequest(flashcardSchemas.csvUpload, 'body'),
-  uploadCSV
-);
-
-// Get flashcards needing practice by category with validation
-router.get(
-  '/needpractice/:category',
-  validateRequest(flashcardSchemas.category, 'params'),
-  getFlashcardsMostWrong
-);
-
-// Add a new flashcard with validation
-router.post(
-  '/add',
-  validateRequest(flashcardSchemas.create, 'body'),
-  addFlashcard
-);
-
-// Get all flashcards with pagination validation
-router.get(
-  '/all',
-  validateRequest(flashcardSchemas.pagination, 'query'),
-  getFlashcards
-);
-
-
-
-// Update flashcard statistics with validation
+// Apply DTO validation middleware
+router.post('/add', validateDto(createFlashcardSchema), flashcardController.addFlashcard);
 router.put(
   '/update/:id',
-  validateRequest(flashcardSchemas.id, 'params'),
-  validateRequest(flashcardSchemas.updateStats, 'body'),
-  updateFlashcard
+  validateParamsDto(updateParamsSchema),  // ✅ validate `req.params`
+  validateDto(updateBodySchema),          // ✅ validate `req.body`
+  flashcardController.updateFlashcard
 );
+router.get('/all', validateQueryDto(flashcardQuerySchema), flashcardController.getFlashcards);
+router.get('/practice/:category', flashcardController.getFlashcardsMostWrong);
+router.post('/upload_csv', flashcardController.uploadCSV);
+
 export default router;

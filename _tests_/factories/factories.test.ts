@@ -214,7 +214,7 @@ describe('Test Factories', () => {
     it('should build need practice endpoint', () => {
       const url = ApiUrlBuilder.needPractice('Verbs');
       
-      expect(url).toBe('/api/flashcards/needpractice/Verbs');
+      expect(url).toBe('/api/flashcards/practice/Verbs');
     });
   });
 

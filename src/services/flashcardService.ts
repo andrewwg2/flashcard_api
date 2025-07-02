@@ -1,20 +1,14 @@
 import Flashcard, { IFlashcard } from '../models/flashcardModel';
 import mongoose from 'mongoose';
 import { createFlashcardsFromCSV } from '../CSVUpload';
-
-interface PaginationOptions {
-  page: number;
-  limit: number;
-}
-
-interface PaginatedFlashcardsResult {
-  flashcards: IFlashcard[];
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalFlashcards: number;
-  };
-}
+import { 
+  FlashcardDto, 
+  CreateFlashcardDto, 
+  UpdateFlashcardStatsDto, 
+  FlashcardQueryDto, 
+  PaginatedFlashcardsResultDto,
+  FlashcardDtoMapper
+} from '../dto/flashcardDto';
 
 interface FlashcardQuery {
   percentageCorrect?: { $lt: number };
@@ -24,76 +18,74 @@ interface FlashcardQuery {
 export class FlashcardService {
   /**
    * Update flashcard statistics based on whether the answer was correct
-   * @param id - The flashcard ID
-   * @param isCorrect - Whether the answer was correct
-   * @returns Updated flashcard or null if not found
+   * @param dto - The update DTO containing ID and isCorrect flag
+   * @returns Updated flashcard DTO or null if not found
    */
-  async updateFlashcardStats(id: string, isCorrect: boolean): Promise<IFlashcard | null> {
-    const flashcard = await Flashcard.findById(id);
+  async updateFlashcardStats(dto: UpdateFlashcardStatsDto): Promise<FlashcardDto | null> {
+    const flashcard = await Flashcard.findById(dto.id);
     
     if (!flashcard) {
       return null;
     }
 
-    flashcard.updateStats(isCorrect);
+    flashcard.updateStats(dto.isCorrect);
     await flashcard.save();
     
-    return flashcard;
+    return FlashcardDtoMapper.toDto(flashcard);
   }
 
   /**
    * Create a new flashcard
-   * @param spanishWord - Spanish word
-   * @param englishWord - English translation
-   * @param category - Category of the flashcard
-   * @returns Created flashcard
+   * @param dto - The create flashcard DTO
+   * @returns Created flashcard DTO
    */
-  async createFlashcard(
-    spanishWord: string, 
-    englishWord: string, 
-    category?: string
-  ): Promise<IFlashcard> {
+  async createFlashcard(dto: CreateFlashcardDto): Promise<FlashcardDto> {
     const newFlashcard = new Flashcard({
-      spanishWord,
-      englishWord,
-      category,
+      spanishWord: dto.spanishWord,
+      englishWord: dto.englishWord,
+      category: dto.category,
     });
 
     await newFlashcard.save();
-    return newFlashcard;
+    return FlashcardDtoMapper.toDto(newFlashcard);
   }
 
   /**
    * Get flashcards with pagination
-   * @param options - Pagination options
-   * @returns Paginated flashcards result
+   * @param queryDto - Query parameters for pagination
+   * @returns Paginated flashcards result DTO
    */
   async getFlashcardsWithPagination(
-    options: PaginationOptions
-  ): Promise<PaginatedFlashcardsResult> {
+    queryDto: FlashcardQueryDto
+  ): Promise<PaginatedFlashcardsResultDto> {
+    const page = queryDto.page || 1;
+    const limit = queryDto.limit || 10;
+    
     const flashcards = await Flashcard.find()
-      .skip((options.page - 1) * options.limit)
-      .limit(options.limit);
+      .skip((page - 1) * limit)
+      .limit(limit);
 
     const totalFlashcards = await Flashcard.countDocuments();
-    const totalPages = Math.ceil(totalFlashcards / options.limit);
+    const totalPages = Math.ceil(totalFlashcards / limit);
 
-    return {
+    const result = {
       flashcards,
       pagination: {
-        currentPage: options.page,
+        currentPage: page,
         totalPages,
         totalFlashcards,
       },
     };
+
+    return FlashcardDtoMapper.toPaginatedResultDto(result);
   }
 
   /**
    * Get flashcards that need more practice (percentageCorrect < 50%)
    * @param category - Filter by category, or "All" for all categories
-   * @returns Array of flashcards that need practice
+   * @returns Array of flashcard DTOs that need practice
    */
-  async getFlashcardsNeedingPractice(category: string): Promise<IFlashcard[]> {
+  async getFlashcardsNeedingPractice(category: string): Promise<FlashcardDto[]> {
     const query: FlashcardQuery = {
       percentageCorrect: { $lt: 0.5 },
     };
@@ -104,7 +96,7 @@ export class FlashcardService {
     }
 
     const flashcards = await Flashcard.find(query);
-    return flashcards;
+    return FlashcardDtoMapper.toDtoList(flashcards);
   }
 
   /**
