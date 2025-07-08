@@ -63,6 +63,26 @@ export class FlashcardDataFactory {
       ...overrides,
     });
   }
+
+  /**
+   * Create a flashcard marked as favorite
+   */
+  static createFavorite(overrides: Partial<any> = {}): any {
+    return this.create({
+      favorite: true,
+      ...overrides,
+    });
+  }
+
+  /**
+   * Create a flashcard not marked as favorite
+   */
+  static createNonFavorite(overrides: Partial<any> = {}): any {
+    return this.create({
+      favorite: false,
+      ...overrides,
+    });
+  }
 }
 
 // Mock flashcard factory for creating mocked flashcard instances
@@ -192,13 +212,13 @@ export class FlashcardAssertionHelpers {
   /**
    * Assert validation error response
    */
-  static assertValidationError(res: any, expectedField?: string): void {
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toHaveProperty('status', 'error');
-    expect(typeof res.body.message).toBe('string');
-    expect(res.body.message.toLowerCase()).toContain('required');
-    expect(res.body).toHaveProperty('details');
-    expect(Array.isArray(res.body.details)).toBe(true);
+  static assertValidationError(res: any, expectedField?: string, expectedMessageSubstring: string = 'required'): void {
+  expect(res.statusCode).toBe(400);
+  expect(res.body).toHaveProperty('status', 'error');
+  expect(typeof res.body.message).toBe('string');
+  expect(res.body.message.toLowerCase()).toContain(expectedMessageSubstring.toLowerCase());
+  expect(res.body).toHaveProperty('details');
+  expect(Array.isArray(res.body.details)).toBe(true);
 
   if (expectedField) {
     expect(res.body.details.some((d: any) => d.path?.[0] === expectedField)).toBe(true);

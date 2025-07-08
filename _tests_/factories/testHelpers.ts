@@ -134,4 +134,18 @@ export class ApiUrlBuilder {
   static needPractice(category: string): string {
     return this.build(`/practice/${category}`);
   }
+
+  /**
+   * Build URL for favorite endpoint
+   */
+  static favorite(id: string): string {
+    return this.build(`/favorite/${id}`);
+  }
+
+  /**
+   * Build URL for deduplication maintenance endpoint
+   */
+  static deduplicate(): string {
+    return this.build('/maintenance/deduplicate');
+  }
 }
