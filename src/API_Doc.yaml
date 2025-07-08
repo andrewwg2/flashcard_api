@@ -1,0 +1,186 @@
+openapi: 3.0.0
+info:
+  title: Flashcard API
+  version: 1.0.0
+  description: API for managing flashcards
+servers:
+  - url: http://localhost:5000/api/flashcards
+paths:
+  /update/{id}:
+    put:
+      summary: Update a Flashcard
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isCorrect:
+                  type: boolean
+      responses:
+        '200':
+          description: Flashcard updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flashcard'
+        '404':
+          description: Flashcard not found
+        '500':
+          description: Failed to update flashcard
+  /add:
+    post:
+      summary: Add a New Flashcard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                spanishWord:
+                  type: string
+                englishWord:
+                  type: string
+                category:
+                  type: string
+      responses:
+        '201':
+          description: Flashcard added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flashcard'
+        '500':
+          description: Failed to add flashcard
+  /all:
+    get:
+      summary: Get All Flashcards
+      responses:
+        '200':
+          description: Flashcards retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Flashcard'
+        '500':
+          description: Failed to get flashcards
+  /needpractice/{category}:
+    get:
+      summary: Get Flashcards Most Wrong in a Specific Category
+      parameters:
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Flashcards retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Flashcard'
+        '404':
+          description: No flashcards found with the specified category and percentageCorrect
+        '500':
+          description: Failed to get flashcards
+  /favorite/{id}:
+    put:
+      summary: Toggle Favorite Status of a Flashcard
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                favorite:
+                  type: boolean
+      responses:
+        '200':
+          description: Flashcard favorite status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flashcard'
+        '404':
+          description: Flashcard not found
+        '500':
+          description: Failed to update flashcard favorite status
+  /maintenance/deduplicate:
+    post:
+      summary: Remove Duplicate Flashcards (Maintenance Task)
+      description: Removes duplicate flashcards based on spanishWord. Keeps records with meaningful data (percentageCorrect > 0 or timesSeen > 0) and removes empty duplicates.
+      responses:
+        '200':
+          description: Deduplication completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Maintenance task completed successfully"
+                  task:
+                    type: string
+                    example: "deDuplicate"
+                  result:
+                    type: object
+                    properties:
+                      duplicateGroupsFound:
+                        type: integer
+                        description: Number of duplicate groups found
+                        example: 5
+                      recordsDeleted:
+                        type: integer
+                        description: Number of duplicate records deleted
+                        example: 12
+                      remainingRecords:
+                        type: integer
+                        description: Total number of records remaining after deduplication
+                        example: 150
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2025-01-06T21:15:30.000Z"
+        '500':
+          description: Failed to complete deduplication task
+components:
+  schemas:
+    Flashcard:
+      type: object
+      properties:
+        spanishWord:
+          type: string
+        englishWord:
+          type: string
+        dateLastSeen:
+          type: string
+          format: date-time
+        timesSeen:
+          type: integer
+        percentageCorrect:
+          type: number
+        category:
+          type: string
+        favorite:
+          type: boolean

@@ -1,0 +1,9 @@
+# Node / React
+node_modules/
+dist/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+.vscode
