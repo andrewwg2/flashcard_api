@@ -9,7 +9,6 @@ import { ConsoleMessages, ErrorMessages, formatErrorMessage } from './constants/
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
 // Middleware to parse JSON
 app.use(express.json());
@@ -49,7 +48,7 @@ app.use('*', notFoundHandler);
 app.use(errorHandler);
 
 // MongoDB connection with better error handling
-const connectDB = async () => {
+export const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI!, {
       // Modern Mongoose connection options
@@ -58,8 +57,11 @@ const connectDB = async () => {
     console.log('✅ ' + ConsoleMessages.MONGODB_CONNECTED);
   } catch (err) {
     console.error('❌ ' + ConsoleMessages.MONGODB_ERROR + ':', err);
-    // Exit process with failure
-    process.exit(1);
+    // Only exit in production, not in tests
+    if (process.env.NODE_ENV !== 'test') {
+      process.exit(1);
+    }
+    throw err;
   }
 };
 
@@ -77,7 +79,9 @@ mongoose.connection.on('error', (err) => {
 });
 
 // Start server after DB connection
-const startServer = async () => {
+export const startServer = async () => {
+  const PORT = process.env.PORT || 5000;
+  
   try {
     await connectDB();
     
@@ -90,7 +94,10 @@ const startServer = async () => {
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
-    process.exit(1);
+    if (process.env.NODE_ENV !== 'test') {
+      process.exit(1);
+    }
+    throw error;
   }
 };
 
@@ -98,14 +105,18 @@ const startServer = async () => {
 process.on('uncaughtException', (error) => {
   console.error('❌ UNCAUGHT EXCEPTION! 💥 Shutting down...');
   console.error(error);
-  process.exit(1);
+  if (process.env.NODE_ENV !== 'test') {
+    process.exit(1);
+  }
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (error) => {
   console.error('❌ UNHANDLED REJECTION! 💥 Shutting down...');
   console.error(error);
-  process.exit(1);
+  if (process.env.NODE_ENV !== 'test') {
+    process.exit(1);
+  }
 });
 
 // Handle graceful shutdown
@@ -120,6 +131,7 @@ process.on('SIGTERM', async () => {
     process.exit(1);
   }
 });
+
 // Graceful shutdown for SIGINT (e.g. Ctrl+C in terminal)
 process.on('SIGINT', async () => {
   console.log('🛑 ' + ConsoleMessages.SIGINT_RECEIVED);
@@ -133,7 +145,9 @@ process.on('SIGINT', async () => {
   }
 });
 
-// Start the server
-startServer();
+// Only start the server if this file is run directly (not imported)
+if (require.main === module) {
+  startServer();
+}
 
 export default app;

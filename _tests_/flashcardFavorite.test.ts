@@ -3,6 +3,7 @@ import app from '../src/app';
 import mongoose from 'mongoose';
 import Flashcard from '../src/models/flashcardModel';
 import dotenv from 'dotenv';
+import { TestDatabase } from './helpers/testDatabase';
 import {
   FlashcardDataFactory,
   FlashcardRequestFactory,
@@ -16,16 +17,16 @@ dotenv.config();
 
 describe('Flashcard Favorite Functionality', () => {
   beforeAll(async () => {
-    await mongoose.connect(process.env.MONGO_URI!);
+    await TestDatabase.connect();
   });
 
   afterAll(async () => {
-    await Flashcard.deleteMany({});
-    await mongoose.disconnect();
+    await TestDatabase.clearDatabase();
+    await TestDatabase.disconnect();
   });
 
   beforeEach(async () => {
-    await Flashcard.deleteMany({});
+    await TestDatabase.clearDatabase();
   });
 
   afterEach(() => {
