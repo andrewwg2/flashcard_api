@@ -1,16 +1,27 @@
 import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 import Flashcard from '../../src/models/flashcardModel';
 
 export class TestDatabase {
+  private static mongoServer: MongoMemoryServer;
+
   static async connect(): Promise<void> {
     if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(process.env.MONGO_URI!);
+      // Create an in-memory MongoDB instance
+      this.mongoServer = await MongoMemoryServer.create();
+      const mongoUri = this.mongoServer.getUri();
+      
+      await mongoose.connect(mongoUri);
     }
   }
 
   static async disconnect(): Promise<void> {
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close();
+    }
+    
+    if (this.mongoServer) {
+      await this.mongoServer.stop();
     }
   }
 

@@ -15,3 +15,6 @@ if (process.env.SUPPRESS_TEST_LOGS === 'true') {
   console.warn = jest.fn();
   console.error = jest.fn();
 }
+
+// Note: Database connection is now handled by in-memory MongoDB via TestDatabase helper
+// No need to set MONGO_URI for tests as we use mongodb-memory-server
